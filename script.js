@@ -1,325 +1,610 @@
-class PersonalWebsiteEditor {
-    constructor() {
-        this.websiteCount = 1;
-        this.isOwnerView = true; // 標記是否為擁有者視圖
-        this.initializeElements();
-        this.attachEventListeners();
-        this.checkIfPublicView();
-        this.loadInitialData();
-    }
-
-    initializeElements() {
-        this.editPage = document.getElementById('editPage');
-        this.previewPage = document.getElementById('previewPage');
-        this.personalWebsite = document.getElementById('personalWebsite');
-        this.previewBtn = document.getElementById('previewBtn');
-        this.backBtn = document.getElementById('backBtn');
-        this.saveBtn = document.getElementById('saveBtn');
-        this.addWebsiteBtn = document.getElementById('addWebsiteBtn');
-        this.changeAvatarBtn = document.getElementById('changeAvatarBtn');
-        this.avatarImg = document.getElementById('avatarImg');
-        this.nameInput = document.getElementById('nameInput');
-        this.additionalWebsites = document.getElementById('additionalWebsites');
-        this.previewAvatar = document.getElementById('previewAvatar');
-        this.previewName = document.getElementById('previewName');
-        this.previewWebsites = document.getElementById('previewWebsites');
-        this.personalAvatar = document.getElementById('personalAvatar');
-        this.personalName = document.getElementById('personalName');
-        this.personalWebsites = document.getElementById('personalWebsites');
-        this.personalWebsiteHeader = document.getElementById('personalWebsiteHeader');
-        this.backToEditBtn = document.getElementById('backToEditBtn');
-        this.shareBtn = document.getElementById('shareBtn');
-        this.successMessage = document.getElementById('successMessage');
-        this.viewWebsiteBtn = document.getElementById('viewWebsiteBtn');
-        this.shareModal = document.getElementById('shareModal');
-        this.shareUrl = document.getElementById('shareUrl');
-        this.copyUrlBtn = document.getElementById('copyUrlBtn');
-        this.qrCodeBtn = document.getElementById('qrCodeBtn');
-        this.closeShareBtn = document.getElementById('closeShareBtn');
-    }
-
-    attachEventListeners() {
-        this.previewBtn.addEventListener('click', () => this.showPreview());
-        this.backBtn.addEventListener('click', () => this.showEdit());
-        this.saveBtn.addEventListener('click', () => this.saveData());
-        this.addWebsiteBtn.addEventListener('click', () => this.addWebsite());
-        this.changeAvatarBtn.addEventListener('click', () => this.changeAvatar());
-        this.viewWebsiteBtn.addEventListener('click', () => this.showPersonalWebsite());
-        // 僅在擁有者模式下綁定編輯和分享事件
-        if (this.isOwnerView) {
-            this.backToEditBtn.addEventListener('click', () => this.showEdit());
-            this.shareBtn.addEventListener('click', () => this.showShareModal());
-        }
-        this.copyUrlBtn.addEventListener('click', () => this.copyUrl());
-        this.qrCodeBtn.addEventListener('click', () => this.generateQRCode());
-        this.closeShareBtn.addEventListener('click', () => this.hideShareModal());
-    }
-
-    loadInitialData() {
-        const savedData = this.loadData();
-        if (savedData) {
-            this.nameInput.value = savedData.name || '黃曉明';
-            this.avatarImg.src = savedData.avatar || this.avatarImg.src;
-            if (savedData.websites && savedData.websites.length > 1) {
-                for (let i = 1; i < savedData.websites.length; i++) {
-                    this.addWebsite(savedData.websites[i]);
-                }
-            }
-        }
-    }
-
-    checkIfPublicView() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const userId = urlParams.get('user');
-        if (userId) {
-            this.isOwnerView = false;
-            this.showPublicWebsite(userId);
-        }
-    }
-
-    showPublicWebsite(userId) {
-        this.editPage.style.display = 'none';
-        this.previewPage.style.display = 'none';
-        this.personalWebsiteHeader.style.display = 'none'; // 隱藏返回編輯和分享按鈕
-        this.personalWebsite.classList.add('active');
-        this.loadPublicUserData(userId);
-    }
-
-    loadPublicUserData(userId) {
-        const savedData = this.loadData();
-        if (savedData) {
-            this.personalAvatar.src = savedData.avatar;
-            this.personalName.textContent = savedData.name || '用戶';
-            this.personalWebsites.innerHTML = '';
-            if (savedData.websites) {
-                savedData.websites.forEach((website, index) => {
-                    this.createPersonalWebsiteItem(website.url, website.name, index);
-                });
-            }
-        } else {
-            this.personalName.textContent = '用戶不存在';
-            this.personalWebsites.innerHTML = '<p style="color: #666; text-align: center;">該用戶還沒有設置個人資訊</p>';
-        }
-    }
-
-    showPreview() {
-        if (!this.isOwnerView) return; // 公開模式禁止訪問預覽
-        this.updatePreview();
-        this.editPage.classList.remove('active');
-        this.previewPage.classList.add('active');
-    }
-
-    showEdit() {
-        if (!this.isOwnerView) return; // 公開模式禁止訪問編輯
-        this.previewPage.classList.remove('active');
-        this.personalWebsite.classList.remove('active');
-        this.editPage.classList.add('active');
-    }
-
-    updatePreview() {
-        this.previewAvatar.src = this.avatarImg.src;
-        this.previewName.textContent = this.nameInput.value || '未設定姓名';
-        this.previewWebsites.innerHTML = '';
-        const websiteItems = document.querySelectorAll('.website-item');
-        websiteItems.forEach(item => {
-            const urlInput = item.querySelector('input[type="url"]');
-            const nameInput = item.querySelector('input[type="text"]');
-            if (urlInput.value && nameInput.value) {
-                this.createPreviewWebsiteItem(urlInput.value, nameInput.value);
-            }
-        });
-    }
-
-    createPreviewWebsiteItem(url, name) {
-        const item = document.createElement('a');
-        item.className = 'preview-website-item';
-        item.href = url;
-        item.target = '_blank';
-        item.innerHTML = `
-            <div class="preview-website-icon"></div>
-            <div class="preview-website-text">
-                <div class="preview-website-name">${name}</div>
-                <div class="preview-website-url">${url}</div>
-            </div>
-        `;
-        this.previewWebsites.appendChild(item);
-    }
-
-    addWebsite(data = null) {
-        if (!this.isOwnerView) return; // 公開模式禁止添加網站
-        this.websiteCount++;
-        const websiteItem = document.createElement('div');
-        websiteItem.className = 'website-item';
-        websiteItem.innerHTML = `
-            <button class="btn-remove" onclick="this.parentElement.remove()">×</button>
-            <label>網站${this.websiteCount}</label>
-            <input type="url" placeholder="https://example.com/" value="${data ? data.url : ''}">
-            <label>網站名稱</label>
-            <input type="text" placeholder="網站名稱" value="${data ? data.name : ''}">
-        `;
-        this.additionalWebsites.appendChild(websiteItem);
-    }
-
-    changeAvatar() {
-        if (!this.isOwnerView) return; // 公開模式禁止更改頭像
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = 'image/*';
-        fileInput.style.display = 'none';
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    this.avatarImg.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-            }
-            fileInput.remove();
-        });
-        document.body.appendChild(fileInput);
-        fileInput.click();
-    }
-
-    saveData() {
-        if (!this.isOwnerView) return; // 公開模式禁止儲存
-        const data = {
-            name: this.nameInput.value,
-            avatar: this.avatarImg.src,
-            websites: []
-        };
-        const websiteItems = document.querySelectorAll('.website-item');
-        websiteItems.forEach(item => {
-            const urlInput = item.querySelector('input[type="url"]');
-            const nameInput = item.querySelector('input[type="text"]');
-            if (urlInput.value && nameInput.value) {
-                data.websites.push({
-                    url: urlInput.value,
-                    name: nameInput.value
-                });
-            }
-        });
-        localStorage.setItem('personalWebsiteData', JSON.stringify(data));
-        this.showSuccessMessage();
-    }
-
-    loadData() {
-        const savedData = localStorage.getItem('personalWebsiteData');
-        return savedData ? JSON.parse(savedData) : null;
-    }
-
-    showSuccessMessage() {
-        if (!this.isOwnerView) return; // 公開模式禁止顯示成功訊息
-        this.successMessage.classList.add('show');
-        setTimeout(() => {
-            this.successMessage.classList.remove('show');
-        }, 3000);
-    }
-
-    showPersonalWebsite() {
-        if (!this.isOwnerView) return; // 公開模式由 showPublicWebsite 處理
-        this.updatePersonalWebsite();
-        this.successMessage.classList.remove('show');
-        this.editPage.classList.remove('active');
-        this.previewPage.classList.remove('active');
-        this.personalWebsite.classList.add('active');
-        this.personalWebsiteHeader.style.display = 'flex'; // 擁有者模式顯示頭部
-        this.generateShareUrl();
-    }
-
-    updatePersonalWebsite() {
-        this.personalAvatar.src = this.avatarImg.src;
-        this.personalName.textContent = this.nameInput.value || '未設定姓名';
-        this.personalWebsites.innerHTML = '';
-        const websiteItems = document.querySelectorAll('.website-item');
-        websiteItems.forEach((item, index) => {
-            const urlInput = item.querySelector('input[type="url"]');
-            const nameInput = item.querySelector('input[type="text"]');
-            if (urlInput.value && nameInput.value) {
-                this.createPersonalWebsiteItem(urlInput.value, nameInput.value, index);
-            }
-        });
-    }
-
-    createPersonalWebsiteItem(url, name, index) {
-        const item = document.createElement('a');
-        item.className = 'personal-website-item';
-        item.href = url;
-        item.target = '_blank';
-        const icon = this.getWebsiteIcon(url);
-        item.innerHTML = `
-            <div class="personal-website-icon">${icon}</div>
-            <div class="personal-website-text">
-                <div class="personal-website-name">${name}</div>
-                <div class="personal-website-url">${this.formatUrl(url)}</div>
-            </div>
-        `;
-        this.personalWebsites.appendChild(item);
-    }
-
-    getWebsiteIcon(url) {
-        if (url.includes('youtube.com') || url.includes('youtu.be')) return '📺';
-        if (url.includes('instagram.com')) return '📷';
-        if (url.includes('facebook.com')) return '👥';
-        if (url.includes('twitter.com') || url.includes('x.com')) return '🐦';
-        if (url.includes('linkedin.com')) return '💼';
-        if (url.includes('github.com')) return '💻';
-        if (url.includes('tiktok.com')) return '🎵';
-        return '🌐';
-    }
-
-    formatUrl(url) {
-        try {
-            const urlObj = new URL(url);
-            return urlObj.hostname;
-        } catch {
-            return url;
-        }
-    }
-
-    generateShareUrl() {
-        const baseUrl = window.location.origin + window.location.pathname;
-        const userId = this.generateUserId();
-        this.shareUrl.value = `${baseUrl}?user=${userId}`;
-    }
-
-    generateUserId() {
-        const name = this.nameInput.value || 'user';
-        const timestamp = Date.now().toString(36);
-        return name.toLowerCase().replace(/[^a-z0-9]/g, '') + timestamp;
-    }
-
-    showShareModal() {
-        if (!this.isOwnerView) return; // 公開模式禁止顯示分享彈窗
-        this.shareModal.classList.add('show');
-    }
-
-    hideShareModal() {
-        this.shareModal.classList.remove('show');
-    }
-
-    async copyUrl() {
-        try {
-            await navigator.clipboard.writeText(this.shareUrl.value);
-            this.copyUrlBtn.textContent = '已複製!';
-            setTimeout(() => {
-                this.copyUrlBtn.textContent = '複製';
-            }, 2000);
-        } catch {
-            this.shareUrl.select();
-            document.execCommand('copy');
-            this.copyUrlBtn.textContent = '已複製!';
-            setTimeout(() => {
-                this.copyUrlBtn.textContent = '複製';
-            }, 2000);
-        }
-    }
-
-    generateQRCode() {
-        alert(`QR碼生成功能開發中！\n\n網址：${this.shareUrl.value}\n\n你可以手動分享這個網址，或使用瀏覽器的分享功能。`);
-    }
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    new PersonalWebsiteEditor();
-});
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+    color: white;
+    min-height: 100vh;
+}
+
+.page {
+    display: none;
+    min-height: 100vh;
+}
+
+.page.active {
+    display: block;
+}
+
+.container {
+    max-width: 400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 30px;
+}
+
+.btn-preview, .btn-save {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-preview:hover, .btn-save:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+.btn-back {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    margin-right: auto;
+}
+
+.profile-section {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.avatar-container {
+    position: relative;
+    margin-bottom: 30px;
+}
+
+.avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    transition: transform 0.3s ease;
+}
+
+.avatar:hover {
+    transform: scale(1.05);
+}
+
+.btn-change {
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    cursor: pointer;
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    transition: all 0.3s ease;
+}
+
+.btn-change:hover {
+    background: rgba(0, 0, 0, 0.9);
+    transform: translateX(-50%) translateY(-2px);
+}
+
+.name-section {
+    margin-top: 20px;
+}
+
+.name-section label {
+    display: block;
+    font-size: 14px;
+    color: #ccc;
+    margin-bottom: 8px;
+}
+
+.name-section input {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 15px;
+    border-radius: 12px;
+    width: 100%;
+    font-size: 16px;
+    text-align: center;
+}
+
+.websites-section {
+    margin-top: 30px;
+}
+
+.website-item {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 15px;
+    position: relative;
+}
+
+.website-item label {
+    display: block;
+    font-size: 12px;
+    color: #ccc;
+    margin-bottom: 8px;
+}
+
+.website-item input {
+    background: transparent;
+    border: none;
+    color: white;
+    padding: 10px 0;
+    width: 100%;
+    font-size: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 15px;
+}
+
+.website-item input:focus {
+    outline: none;
+    border-bottom-color: #4CAF50;
+}
+
+.website-item input::placeholder {
+    color: #666;
+}
+
+.website-item:last-of-type input:last-child {
+    margin-bottom: 0;
+}
+
+.btn-remove {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(255, 0, 0, 0.2);
+    border: none;
+    color: #ff6b6b;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-add {
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    color: white;
+    width: 100%;
+    padding: 20px;
+    border-radius: 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-add:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-2px);
+}
+
+.plus-icon {
+    font-size: 24px;
+    font-weight: 300;
+}
+
+/* 預覽頁面樣式 */
+.preview-content {
+    text-align: center;
+    padding-top: 20px;
+}
+
+.preview-avatar-container {
+    margin-bottom: 20px;
+}
+
+.preview-avatar {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    border: 4px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.preview-name {
+    font-size: 28px;
+    font-weight: 300;
+    margin-bottom: 40px;
+    color: white;
+}
+
+.preview-websites {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.preview-website-item {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 15px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: white;
+    transition: all 0.3s ease;
+}
+
+.preview-website-item:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.preview-website-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #e0f2fe, #81c784);
+    margin-right: 15px;
+    flex-shrink: 0;
+}
+
+.preview-website-text {
+    flex: 1;
+    text-align: left;
+}
+
+.preview-website-name {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.preview-website-url {
+    font-size: 14px;
+    color: #ccc;
+}
+
+/* 成功訊息 */
+.success-message {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.success-message.show {
+    display: flex;
+}
+
+.success-content {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    padding: 40px;
+    text-align: center;
+    backdrop-filter: blur(20px);
+}
+
+.success-icon {
+    font-size: 48px;
+    color: #4CAF50;
+    margin-bottom: 20px;
+}
+
+.success-content p {
+    font-size: 18px;
+    color: white;
+    margin-bottom: 20px;
+}
+
+.btn-view-website {
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+    border: none;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn-view-website:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(76, 175, 80, 0.3);
+}
+
+/* 個人網站頁面樣式 */
+.personal-site-content {
+    text-align: center;
+    padding-top: 20px;
+    min-height: calc(100vh - 100px);
+    display: flex;
+    flex-direction: column;
+}
+
+.personal-avatar-container {
+    margin-bottom: 30px;
+}
+
+.personal-avatar {
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    transition: transform 0.3s ease;
+}
+
+.personal-avatar:hover {
+    transform: scale(1.05);
+}
+
+.personal-name {
+    font-size: 36px;
+    font-weight: 300;
+    margin-bottom: 10px;
+    color: white;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.personal-subtitle {
+    font-size: 18px;
+    color: #ccc;
+    margin-bottom: 50px;
+    font-weight: 300;
+}
+
+.personal-websites {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    flex: 1;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.personal-website-item {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    padding: 25px;
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: white;
+    transition: all 0.4s ease;
+    backdrop-filter: blur(10px);
+}
+
+.personal-website-item:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-5px);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+}
+
+.personal-website-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    margin-right: 20px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: white;
+}
+
+.personal-website-text {
+    flex: 1;
+    text-align: left;
+}
+
+.personal-website-name {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.personal-website-url {
+    font-size: 14px;
+    color: #bbb;
+    opacity: 0.8;
+}
+
+.personal-footer {
+    margin-top: 60px;
+    padding: 30px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.personal-footer p {
+    color: #666;
+    font-size: 14px;
+}
+
+.btn-share {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-share:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+/* 分享彈窗樣式 */
+.share-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.share-modal.show {
+    display: flex;
+}
+
+.share-content {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    padding: 40px;
+    text-align: center;
+    backdrop-filter: blur(20px);
+    max-width: 400px;
+    width: 90%;
+}
+
+.share-content h3 {
+    color: white;
+    margin-bottom: 30px;
+    font-size: 20px;
+}
+
+.share-url-container {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.share-url-container input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.btn-copy, .btn-qr, .btn-close-share {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-copy {
+    white-space: nowrap;
+}
+
+.btn-copy:hover, .btn-qr:hover, .btn-close-share:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.share-options {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+/* 登入頁面樣式 */
+.login-content {
+    text-align: center;
+    padding-top: 20%;
+}
+
+.login-content h2 {
+    font-size: 24px;
+    margin-bottom: 20px;
+    color: white;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.login-form label {
+    font-size: 14px;
+    color: #ccc;
+    text-align: left;
+}
+
+.login-form input {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 16px;
+}
+
+.btn-login {
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+    border: none;
+    color: white;
+    padding: 12px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.3s ease;
+}
+
+.btn-login:hover {
+    background: linear-gradient(135deg, #45a049, #4CAF50);
+    transform: translateY(-2px);
+}
+
+.login-error {
+    color: #ff6b6b;
+    font-size: 14px;
+    margin-top: 10px;
+}
+
+/* 響應式設計 */
+@media (max-width: 480px) {
+    .container {
+        padding: 15px;
+    }
+    
+    .avatar {
+        width: 100px;
+        height: 100px;
+    }
+    
+    .preview-avatar {
+        width: 120px;
+        height: 120px;
+    }
+}
